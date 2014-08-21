@@ -609,7 +609,7 @@ mpegts_input_table_dispatch ( mpegts_mux_t *mm, const uint8_t *tsb )
   /* Collate - tables may be removed during callbacks */
   pthread_mutex_lock(&mm->mm_tables_lock);
   i = mm->mm_num_tables;
-    tvhdebug("psi", "mm_num_tables i %d", mm_num_tables);
+    tvhdebug("psi", "mm_num_tables i %d", mm->mm_num_tables);
   vec = alloca(i * sizeof(mpegts_table_t *));
   LIST_FOREACH(mt, &mm->mm_tables, mt_link) {
     c++;
@@ -619,7 +619,7 @@ mpegts_input_table_dispatch ( mpegts_mux_t *mm, const uint8_t *tsb )
     mpegts_table_grab(mt);
     if (len < i)
       vec[len++] = mt;
-      tvhdebug("psi", "vec array index = %d, i = %d" ,len, i);
+      tvhdebug("psi", "vec array index = %d, i = %d",len, i);
   }
   pthread_mutex_unlock(&mm->mm_tables_lock);
   if (i != c) {
@@ -641,7 +641,7 @@ mpegts_input_table_dispatch ( mpegts_mux_t *mm, const uint8_t *tsb )
           tvhdebug("psi", "PID %04X CC error %d != %d", pid, cc, mt->mt_cc);
          }
         mt->mt_cc = (cc + 1) & 0xF;
-          tvhdebug("psi", "new mt->mt_cc (cc+1) & 0xF = %d" , mt->mt_cc);
+          tvhdebug("psi", "new mt->mt_cc (cc+1) & 0xF = %d", mt->mt_cc);
         mpegts_psi_section_reassemble(&mt->mt_sect, tsb, 0, ccerr,
                                       mpegts_table_dispatch, mt);
       }
