@@ -1,0 +1,13 @@
+version: v1
+name: buf.build/tvheadend/api
+breaking:
+  use:
+    - FILE
+lint:
+  use:
+    - DEFAULT
+  except:
+    - PACKAGE_VERSION_SUFFIX
+    - SERVICE_SUFFIX
+deps:
+  - buf.build/googleapis/googleapis

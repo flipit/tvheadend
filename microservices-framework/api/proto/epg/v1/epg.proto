@@ -1,0 +1,326 @@
+syntax = "proto3";
+
+package tvheadend.epg.v1;
+
+option go_package = "github.com/tvheadend/api/epg/v1;epgv1";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+// EPG service for Electronic Program Guide data
+service EPGService {
+  // Get a specific programme
+  rpc GetProgramme(GetProgrammeRequest) returns (Programme);
+
+  // List programmes with filters
+  rpc ListProgrammes(ListProgrammesRequest) returns (ListProgrammesResponse);
+
+  // Get current and next programme for a channel
+  rpc GetCurrentNext(GetCurrentNextRequest) returns (GetCurrentNextResponse);
+
+  // Search programmes
+  rpc SearchProgrammes(SearchProgrammesRequest) returns (SearchProgrammesResponse);
+
+  // Get schedule for channels
+  rpc GetSchedule(GetScheduleRequest) returns (GetScheduleResponse);
+
+  // Get series information
+  rpc GetSeries(GetSeriesRequest) returns (Series);
+
+  // List episodes for a series
+  rpc ListSeriesEpisodes(ListSeriesEpisodesRequest) returns (ListSeriesEpisodesResponse);
+
+  // Stream EPG updates
+  rpc WatchProgrammes(WatchProgrammesRequest) returns (stream ProgrammeEvent);
+}
+
+// Programme represents a TV programme/show
+message Programme {
+  // Unique programme ID
+  string id = 1;
+
+  // Channel ID
+  string channel_id = 2;
+
+  // Programme title
+  string title = 3;
+
+  // Episode title/subtitle
+  string subtitle = 4;
+
+  // Description/synopsis
+  string description = 5;
+
+  // Long description
+  string long_description = 6;
+
+  // Start time
+  google.protobuf.Timestamp start_time = 7;
+
+  // End time
+  google.protobuf.Timestamp end_time = 8;
+
+  // Duration in seconds
+  int32 duration = 9;
+
+  // Content type
+  ContentType content_type = 10;
+
+  // Genre
+  repeated string genres = 11;
+
+  // Series information
+  SeriesInfo series_info = 12;
+
+  // Credits (actors, directors, etc.)
+  repeated Credit credits = 13;
+
+  // Rating information
+  Rating rating = 14;
+
+  // Image URLs
+  repeated Image images = 15;
+
+  // Audio/video metadata
+  MediaInfo media_info = 16;
+
+  // First aired date
+  google.protobuf.Timestamp first_aired = 17;
+
+  // EPG source
+  string source = 18;
+
+  // Created/Updated timestamps
+  google.protobuf.Timestamp created_at = 19;
+  google.protobuf.Timestamp updated_at = 20;
+}
+
+// ContentType indicates the type of content
+enum ContentType {
+  CONTENT_TYPE_UNSPECIFIED = 0;
+  CONTENT_TYPE_MOVIE = 1;
+  CONTENT_TYPE_SERIES = 2;
+  CONTENT_TYPE_SPORTS = 3;
+  CONTENT_TYPE_NEWS = 4;
+  CONTENT_TYPE_DOCUMENTARY = 5;
+  CONTENT_TYPE_KIDS = 6;
+  CONTENT_TYPE_MUSIC = 7;
+  CONTENT_TYPE_SPECIAL = 8;
+}
+
+// SeriesInfo contains series/episode information
+message SeriesInfo {
+  // Series ID
+  string series_id = 1;
+
+  // Series title
+  string series_title = 2;
+
+  // Season number
+  int32 season_number = 3;
+
+  // Episode number
+  int32 episode_number = 4;
+
+  // Episode count in season
+  int32 episode_count = 5;
+
+  // Part number (for multi-part episodes)
+  int32 part_number = 6;
+
+  // Part count
+  int32 part_count = 7;
+}
+
+// Credit represents a person involved in the programme
+message Credit {
+  enum Role {
+    ROLE_UNSPECIFIED = 0;
+    ROLE_ACTOR = 1;
+    ROLE_DIRECTOR = 2;
+    ROLE_WRITER = 3;
+    ROLE_PRODUCER = 4;
+    ROLE_PRESENTER = 5;
+    ROLE_GUEST = 6;
+  }
+
+  string name = 1;
+  Role role = 2;
+  string character = 3;  // Character name for actors
+}
+
+// Rating contains age/content ratings
+message Rating {
+  string system = 1;  // e.g., "MPAA", "TV-PG"
+  string value = 2;   // e.g., "PG-13", "TV-MA"
+  repeated string advisories = 3;  // e.g., "Violence", "Language"
+}
+
+// Image represents programme artwork
+message Image {
+  enum ImageType {
+    IMAGE_TYPE_UNSPECIFIED = 0;
+    IMAGE_TYPE_POSTER = 1;
+    IMAGE_TYPE_BACKDROP = 2;
+    IMAGE_TYPE_THUMBNAIL = 3;
+    IMAGE_TYPE_SCREENSHOT = 4;
+  }
+
+  ImageType type = 1;
+  string url = 2;
+  int32 width = 3;
+  int32 height = 4;
+}
+
+// MediaInfo contains audio/video technical details
+message MediaInfo {
+  string video_codec = 1;
+  string audio_codec = 2;
+  int32 video_width = 3;
+  int32 video_height = 4;
+  string aspect_ratio = 5;
+  repeated string audio_channels = 6;  // e.g., "stereo", "5.1"
+  bool hd = 7;
+  bool subtitled = 8;
+  bool audio_described = 9;
+  repeated string languages = 10;
+}
+
+// Series represents a TV series/brand
+message Series {
+  string id = 1;
+  string title = 2;
+  string description = 3;
+  int32 season_count = 4;
+  int32 episode_count = 5;
+  repeated string genres = 6;
+  repeated Image images = 7;
+  google.protobuf.Timestamp first_aired = 8;
+}
+
+// GetProgrammeRequest retrieves a specific programme
+message GetProgrammeRequest {
+  string id = 1;
+}
+
+// ListProgrammesRequest lists programmes with filters
+message ListProgrammesRequest {
+  // Filter by channel
+  string channel_id = 1;
+
+  // Filter by time range
+  google.protobuf.Timestamp start_time_after = 2;
+  google.protobuf.Timestamp start_time_before = 3;
+
+  // Filter by content type
+  repeated ContentType content_types = 4;
+
+  // Filter by genre
+  repeated string genres = 5;
+
+  // Pagination
+  int32 page_size = 6;
+  string page_token = 7;
+
+  // Sorting
+  string order_by = 8;
+}
+
+// ListProgrammesResponse returns programmes
+message ListProgrammesResponse {
+  repeated Programme programmes = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+// GetCurrentNextRequest gets current/next programme
+message GetCurrentNextRequest {
+  string channel_id = 1;
+  google.protobuf.Timestamp time = 2;  // Optional, defaults to now
+}
+
+// GetCurrentNextResponse returns current and next programmes
+message GetCurrentNextResponse {
+  Programme current = 1;
+  Programme next = 2;
+}
+
+// SearchProgrammesRequest searches programmes
+message SearchProgrammesRequest {
+  // Search query
+  string query = 1;
+
+  // Filters
+  repeated string channel_ids = 2;
+  repeated ContentType content_types = 3;
+  repeated string genres = 4;
+  google.protobuf.Timestamp start_time_after = 5;
+  google.protobuf.Timestamp start_time_before = 6;
+
+  // Pagination
+  int32 page_size = 7;
+  string page_token = 8;
+}
+
+// SearchProgrammesResponse returns search results
+message SearchProgrammesResponse {
+  repeated Programme programmes = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+// GetScheduleRequest gets multi-channel schedule
+message GetScheduleRequest {
+  repeated string channel_ids = 1;
+  google.protobuf.Timestamp start_time = 2;
+  google.protobuf.Timestamp end_time = 3;
+}
+
+// GetScheduleResponse returns schedule grid
+message GetScheduleResponse {
+  message ChannelSchedule {
+    string channel_id = 1;
+    repeated Programme programmes = 2;
+  }
+
+  repeated ChannelSchedule schedules = 1;
+}
+
+// GetSeriesRequest retrieves series information
+message GetSeriesRequest {
+  string id = 1;
+}
+
+// ListSeriesEpisodesRequest lists episodes for a series
+message ListSeriesEpisodesRequest {
+  string series_id = 1;
+  int32 season_number = 2;  // Optional, 0 = all seasons
+  int32 page_size = 3;
+  string page_token = 4;
+}
+
+// ListSeriesEpisodesResponse returns series episodes
+message ListSeriesEpisodesResponse {
+  repeated Programme episodes = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+// WatchProgrammesRequest subscribes to EPG updates
+message WatchProgrammesRequest {
+  repeated string channel_ids = 1;
+}
+
+// ProgrammeEvent represents an EPG update
+message ProgrammeEvent {
+  enum EventType {
+    EVENT_TYPE_UNSPECIFIED = 0;
+    EVENT_TYPE_CREATED = 1;
+    EVENT_TYPE_UPDATED = 2;
+    EVENT_TYPE_DELETED = 3;
+  }
+
+  EventType type = 1;
+  Programme programme = 2;
+  google.protobuf.Timestamp timestamp = 3;
+}

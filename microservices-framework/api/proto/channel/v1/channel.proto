@@ -1,0 +1,238 @@
+syntax = "proto3";
+
+package tvheadend.channel.v1;
+
+option go_package = "github.com/tvheadend/api/channel/v1;channelv1";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+// Channel service for managing TV channels
+service ChannelService {
+  // Get a specific channel
+  rpc GetChannel(GetChannelRequest) returns (Channel);
+
+  // List all channels
+  rpc ListChannels(ListChannelsRequest) returns (ListChannelsResponse);
+
+  // Create a new channel
+  rpc CreateChannel(CreateChannelRequest) returns (Channel);
+
+  // Update a channel
+  rpc UpdateChannel(UpdateChannelRequest) returns (Channel);
+
+  // Delete a channel
+  rpc DeleteChannel(DeleteChannelRequest) returns (google.protobuf.Empty);
+
+  // Map channel to service
+  rpc MapChannelToService(MapChannelToServiceRequest) returns (Channel);
+
+  // Get channel tags
+  rpc ListChannelTags(ListChannelTagsRequest) returns (ListChannelTagsResponse);
+
+  // Create channel tag
+  rpc CreateChannelTag(CreateChannelTagRequest) returns (ChannelTag);
+
+  // Stream channel updates
+  rpc WatchChannels(WatchChannelsRequest) returns (stream ChannelEvent);
+}
+
+// Channel represents a user-facing TV channel
+message Channel {
+  // Unique channel ID
+  string id = 1;
+
+  // Channel number (user-visible)
+  int32 number = 2;
+
+  // Channel name
+  string name = 3;
+
+  // Channel icon URL
+  string icon_url = 4;
+
+  // Services mapped to this channel (priority ordered)
+  repeated ServiceMapping services = 5;
+
+  // Tags assigned to this channel
+  repeated string tag_ids = 6;
+
+  // Enabled
+  bool enabled = 7;
+
+  // EPG source ID
+  string epg_source_id = 8;
+
+  // Metadata
+  ChannelMetadata metadata = 9;
+
+  // Created/Updated timestamps
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+}
+
+// ServiceMapping maps a channel to a service with priority
+message ServiceMapping {
+  // Service ID (from input service)
+  string service_id = 1;
+
+  // Service name
+  string service_name = 2;
+
+  // Priority (lower = higher priority)
+  int32 priority = 3;
+
+  // Service type
+  ServiceType service_type = 4;
+
+  // Current status
+  ServiceStatus status = 5;
+}
+
+// ServiceType indicates the input source type
+enum ServiceType {
+  SERVICE_TYPE_UNSPECIFIED = 0;
+  SERVICE_TYPE_DVB = 1;
+  SERVICE_TYPE_IPTV = 2;
+  SERVICE_TYPE_SATIP = 3;
+  SERVICE_TYPE_FILE = 4;
+}
+
+// ServiceStatus indicates service availability
+enum ServiceStatus {
+  SERVICE_STATUS_UNSPECIFIED = 0;
+  SERVICE_STATUS_ONLINE = 1;
+  SERVICE_STATUS_OFFLINE = 2;
+  SERVICE_STATUS_ERROR = 3;
+}
+
+// ChannelMetadata contains additional channel information
+message ChannelMetadata {
+  string description = 1;
+  repeated string genres = 2;
+  string language = 3;
+  string country = 4;
+  string network = 5;
+  bool hd = 6;
+  bool radio = 7;
+  map<string, string> custom_fields = 8;
+}
+
+// ChannelTag represents a tag/group for organizing channels
+message ChannelTag {
+  string id = 1;
+  string name = 2;
+  string icon_url = 3;
+  bool internal = 4;  // System-managed tag
+  int32 channel_count = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+// GetChannelRequest retrieves a specific channel
+message GetChannelRequest {
+  string id = 1;
+}
+
+// ListChannelsRequest lists channels with filters
+message ListChannelsRequest {
+  // Filter by tag
+  repeated string tag_ids = 1;
+
+  // Filter by enabled status
+  optional bool enabled = 2;
+
+  // Filter by service type
+  repeated ServiceType service_types = 3;
+
+  // Include disabled channels
+  bool include_disabled = 4;
+
+  // Pagination
+  int32 page_size = 5;
+  string page_token = 6;
+
+  // Sorting (e.g., "number", "name", "-created_at")
+  string order_by = 7;
+}
+
+// ListChannelsResponse returns channels
+message ListChannelsResponse {
+  repeated Channel channels = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+// CreateChannelRequest creates a new channel
+message CreateChannelRequest {
+  int32 number = 1;
+  string name = 2;
+  string icon_url = 3;
+  repeated string tag_ids = 4;
+  bool enabled = 5;
+  string epg_source_id = 6;
+  ChannelMetadata metadata = 7;
+}
+
+// UpdateChannelRequest updates a channel
+message UpdateChannelRequest {
+  string id = 1;
+  optional int32 number = 2;
+  optional string name = 3;
+  optional string icon_url = 4;
+  repeated string tag_ids = 5;
+  optional bool enabled = 6;
+  optional string epg_source_id = 7;
+  optional ChannelMetadata metadata = 8;
+}
+
+// DeleteChannelRequest deletes a channel
+message DeleteChannelRequest {
+  string id = 1;
+}
+
+// MapChannelToServiceRequest maps a channel to a service
+message MapChannelToServiceRequest {
+  string channel_id = 1;
+  string service_id = 2;
+  int32 priority = 3;
+}
+
+// ListChannelTagsRequest lists tags
+message ListChannelTagsRequest {
+  bool exclude_internal = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+// ListChannelTagsResponse returns tags
+message ListChannelTagsResponse {
+  repeated ChannelTag tags = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+// CreateChannelTagRequest creates a tag
+message CreateChannelTagRequest {
+  string name = 1;
+  string icon_url = 2;
+}
+
+// WatchChannelsRequest subscribes to channel events
+message WatchChannelsRequest {
+  repeated string tag_ids = 1;
+}
+
+// ChannelEvent represents a channel state change
+message ChannelEvent {
+  enum EventType {
+    EVENT_TYPE_UNSPECIFIED = 0;
+    EVENT_TYPE_CREATED = 1;
+    EVENT_TYPE_UPDATED = 2;
+    EVENT_TYPE_DELETED = 3;
+    EVENT_TYPE_SERVICE_STATUS_CHANGED = 4;
+  }
+
+  EventType type = 1;
+  Channel channel = 2;
+  google.protobuf.Timestamp timestamp = 3;
+}

@@ -1,0 +1,49 @@
+# Build stage
+FROM golang:1.21-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache git make protobuf-dev
+
+WORKDIR /app
+
+# Copy go mod files
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build the service
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags="-w -s" \
+    -o /bin/dvr-service ./cmd/dvr-service
+
+# Runtime stage
+FROM alpine:3.18
+
+# Install runtime dependencies
+RUN apk add --no-cache ca-certificates tzdata
+
+# Create non-root user
+RUN addgroup -g 1000 tvheadend && \
+    adduser -D -u 1000 -G tvheadend tvheadend
+
+# Copy binary from builder
+COPY --from=builder /bin/dvr-service /bin/dvr-service
+
+# Create directories
+RUN mkdir -p /data/recordings && \
+    chown -R tvheadend:tvheadend /data
+
+# Switch to non-root user
+USER tvheadend
+
+# Expose ports
+EXPOSE 8080 9090 9091
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD ["/bin/dvr-service", "healthcheck"]
+
+# Run the service
+ENTRYPOINT ["/bin/dvr-service"]
+CMD ["serve"]

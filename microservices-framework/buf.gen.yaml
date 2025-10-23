@@ -1,0 +1,28 @@
+version: v1
+managed:
+  enabled: true
+  go_package_prefix:
+    default: github.com/tvheadend/api
+plugins:
+  # Generate Go protobuf code
+  - plugin: go
+    out: api
+    opt:
+      - paths=source_relative
+
+  # Generate Go gRPC code
+  - plugin: go-grpc
+    out: api
+    opt:
+      - paths=source_relative
+
+  # Generate gRPC-Gateway code
+  - plugin: grpc-gateway
+    out: api
+    opt:
+      - paths=source_relative
+      - generate_unbound_methods=true
+
+  # Generate OpenAPI/Swagger documentation
+  - plugin: openapiv2
+    out: api/openapi

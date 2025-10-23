@@ -1,0 +1,197 @@
+version: '3.8'
+
+services:
+  # Databases
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: tvheadend
+      POSTGRES_USER: tvheadend
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tvheadend"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Message Broker
+  nats:
+    image: nats:2.10-alpine
+    command: "--jetstream --store_dir=/data"
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - nats-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Observability
+  jaeger:
+    image: jaegertracing/all-in-one:1.50
+    ports:
+      - "16686:16686"
+      - "14268:14268"
+      - "14250:14250"
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+
+  grafana:
+    image: grafana/grafana:10.1.0
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+
+  # Object Storage
+  minio:
+    image: minio/minio:latest
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio-data:/data
+    command: server /data --console-address ":9001"
+
+  # Services
+  dvr-service:
+    build:
+      context: ..
+      dockerfile: deployments/docker/Dockerfile.dvr-service
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+      - "9091:9091"
+    environment:
+      DATABASE_URL: "postgresql://tvheadend:password@postgres:5432/tvheadend?sslmode=disable"
+      NATS_URL: "nats://nats:4222"
+      REDIS_URL: "redis://redis:6379"
+      JAEGER_ENDPOINT: "http://jaeger:14268/api/traces"
+      GRPC_PORT: "8080"
+      HTTP_PORT: "9090"
+      METRICS_PORT: "9091"
+      LOG_LEVEL: "info"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - recordings:/data/recordings
+    restart: unless-stopped
+
+  epg-service:
+    build:
+      context: ..
+      dockerfile: deployments/docker/Dockerfile.epg-service
+    ports:
+      - "8081:8080"
+      - "9092:9090"
+      - "9093:9091"
+    environment:
+      DATABASE_URL: "postgresql://tvheadend:password@postgres:5432/tvheadend?sslmode=disable"
+      NATS_URL: "nats://nats:4222"
+      REDIS_URL: "redis://redis:6379"
+      JAEGER_ENDPOINT: "http://jaeger:14268/api/traces"
+      GRPC_PORT: "8080"
+      HTTP_PORT: "9090"
+      METRICS_PORT: "9091"
+      LOG_LEVEL: "info"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  channel-service:
+    build:
+      context: ..
+      dockerfile: deployments/docker/Dockerfile.channel-service
+    ports:
+      - "8082:8080"
+      - "9094:9090"
+      - "9095:9091"
+    environment:
+      DATABASE_URL: "postgresql://tvheadend:password@postgres:5432/tvheadend?sslmode=disable"
+      NATS_URL: "nats://nats:4222"
+      REDIS_URL: "redis://redis:6379"
+      JAEGER_ENDPOINT: "http://jaeger:14268/api/traces"
+      GRPC_PORT: "8080"
+      HTTP_PORT: "9090"
+      METRICS_PORT: "9091"
+      LOG_LEVEL: "info"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # API Gateway (Envoy or custom)
+  api-gateway:
+    image: envoyproxy/envoy:v1.28-latest
+    ports:
+      - "8000:8000"
+      - "9901:9901"
+    volumes:
+      - ./envoy.yaml:/etc/envoy/envoy.yaml
+    command: /usr/local/bin/envoy -c /etc/envoy/envoy.yaml
+    depends_on:
+      - dvr-service
+      - epg-service
+      - channel-service
+
+volumes:
+  postgres-data:
+  redis-data:
+  nats-data:
+  prometheus-data:
+  grafana-data:
+  minio-data:
+  recordings:
+
+networks:
+  default:
+    name: tvheadend-network

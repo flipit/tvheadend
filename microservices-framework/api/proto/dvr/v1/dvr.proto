@@ -1,0 +1,289 @@
+syntax = "proto3";
+
+package tvheadend.dvr.v1;
+
+option go_package = "github.com/tvheadend/api/dvr/v1;dvrv1";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+// DVR service for managing recordings
+service DVRService {
+  // Schedule a new recording
+  rpc ScheduleRecording(ScheduleRecordingRequest) returns (Recording);
+
+  // List all recordings with optional filters
+  rpc ListRecordings(ListRecordingsRequest) returns (ListRecordingsResponse);
+
+  // Get a specific recording by ID
+  rpc GetRecording(GetRecordingRequest) returns (Recording);
+
+  // Delete a recording
+  rpc DeleteRecording(DeleteRecordingRequest) returns (google.protobuf.Empty);
+
+  // Cancel a scheduled/in-progress recording
+  rpc CancelRecording(CancelRecordingRequest) returns (Recording);
+
+  // Create an automatic recording rule
+  rpc CreateAutoRecRule(CreateAutoRecRuleRequest) returns (AutoRecRule);
+
+  // List automatic recording rules
+  rpc ListAutoRecRules(ListAutoRecRulesRequest) returns (ListAutoRecRulesResponse);
+
+  // Delete an automatic recording rule
+  rpc DeleteAutoRecRule(DeleteAutoRecRuleRequest) returns (google.protobuf.Empty);
+
+  // Stream recording events (server streaming)
+  rpc WatchRecordings(WatchRecordingsRequest) returns (stream RecordingEvent);
+}
+
+// Recording represents a scheduled, in-progress, or completed recording
+message Recording {
+  // Unique recording ID
+  string id = 1;
+
+  // Channel being recorded
+  string channel_id = 2;
+
+  // EPG programme ID (if scheduled from EPG)
+  string programme_id = 3;
+
+  // Recording title
+  string title = 4;
+
+  // Recording subtitle/episode
+  string subtitle = 5;
+
+  // Recording description
+  string description = 6;
+
+  // Scheduled start time
+  google.protobuf.Timestamp start_time = 7;
+
+  // Scheduled end time
+  google.protobuf.Timestamp end_time = 8;
+
+  // Actual start time (when recording began)
+  google.protobuf.Timestamp actual_start_time = 9;
+
+  // Actual end time (when recording completed)
+  google.protobuf.Timestamp actual_end_time = 10;
+
+  // Current status
+  RecordingStatus status = 11;
+
+  // File path (if completed)
+  string file_path = 12;
+
+  // File size in bytes
+  int64 file_size = 13;
+
+  // Recording priority (higher = more important)
+  int32 priority = 14;
+
+  // Pre-recording padding in seconds
+  int32 padding_start = 15;
+
+  // Post-recording padding in seconds
+  int32 padding_stop = 16;
+
+  // AutoRec rule ID (if scheduled by autorec)
+  string autorec_id = 17;
+
+  // Error message (if failed)
+  string error = 18;
+
+  // Created timestamp
+  google.protobuf.Timestamp created_at = 19;
+
+  // Updated timestamp
+  google.protobuf.Timestamp updated_at = 20;
+}
+
+// RecordingStatus represents the state of a recording
+enum RecordingStatus {
+  RECORDING_STATUS_UNSPECIFIED = 0;
+  RECORDING_STATUS_SCHEDULED = 1;
+  RECORDING_STATUS_WAITING = 2;
+  RECORDING_STATUS_RECORDING = 3;
+  RECORDING_STATUS_POST_PROCESSING = 4;
+  RECORDING_STATUS_COMPLETED = 5;
+  RECORDING_STATUS_FAILED = 6;
+  RECORDING_STATUS_CANCELLED = 7;
+  RECORDING_STATUS_MISSED = 8;
+}
+
+// ScheduleRecordingRequest schedules a new recording
+message ScheduleRecordingRequest {
+  // Channel to record
+  string channel_id = 1;
+
+  // Programme to record (optional, can use time-based)
+  string programme_id = 2;
+
+  // Start time (if not using programme)
+  google.protobuf.Timestamp start_time = 3;
+
+  // End time (if not using programme)
+  google.protobuf.Timestamp end_time = 4;
+
+  // Recording priority
+  int32 priority = 5;
+
+  // Pre-recording padding in seconds
+  int32 padding_start = 6;
+
+  // Post-recording padding in seconds
+  int32 padding_stop = 7;
+
+  // DVR configuration profile to use
+  string dvr_config_id = 8;
+}
+
+// ListRecordingsRequest lists recordings with filters
+message ListRecordingsRequest {
+  // Filter by status
+  repeated RecordingStatus status = 1;
+
+  // Filter by channel
+  string channel_id = 2;
+
+  // Filter by start time range
+  google.protobuf.Timestamp start_time_after = 3;
+  google.protobuf.Timestamp start_time_before = 4;
+
+  // Pagination
+  int32 page_size = 5;
+  string page_token = 6;
+
+  // Sorting
+  string order_by = 7;
+}
+
+// ListRecordingsResponse returns a list of recordings
+message ListRecordingsResponse {
+  repeated Recording recordings = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+// GetRecordingRequest retrieves a specific recording
+message GetRecordingRequest {
+  string id = 1;
+}
+
+// DeleteRecordingRequest deletes a recording and optionally its file
+message DeleteRecordingRequest {
+  string id = 1;
+  bool delete_file = 2;
+}
+
+// CancelRecordingRequest cancels a scheduled/in-progress recording
+message CancelRecordingRequest {
+  string id = 1;
+}
+
+// AutoRecRule represents an automatic recording rule
+message AutoRecRule {
+  // Unique rule ID
+  string id = 1;
+
+  // Rule name
+  string name = 2;
+
+  // Title pattern (regex or string)
+  string title_pattern = 3;
+
+  // Channel filter
+  string channel_id = 4;
+
+  // Tag filter
+  string tag_id = 5;
+
+  // Genre filter
+  string genre = 6;
+
+  // Enabled
+  bool enabled = 7;
+
+  // Priority
+  int32 priority = 8;
+
+  // Padding
+  int32 padding_start = 9;
+  int32 padding_stop = 10;
+
+  // Duplicate detection
+  DuplicateDetection duplicate_detection = 11;
+
+  // DVR configuration
+  string dvr_config_id = 12;
+
+  // Created timestamp
+  google.protobuf.Timestamp created_at = 13;
+
+  // Number of recordings created
+  int32 recordings_count = 14;
+}
+
+// DuplicateDetection controls how duplicates are handled
+enum DuplicateDetection {
+  DUPLICATE_DETECTION_UNSPECIFIED = 0;
+  DUPLICATE_DETECTION_DISABLED = 1;
+  DUPLICATE_DETECTION_SAME_TITLE = 2;
+  DUPLICATE_DETECTION_SAME_EPISODE = 3;
+  DUPLICATE_DETECTION_SAME_SUBTITLE = 4;
+}
+
+// CreateAutoRecRuleRequest creates a new autorec rule
+message CreateAutoRecRuleRequest {
+  string name = 1;
+  string title_pattern = 2;
+  string channel_id = 3;
+  string tag_id = 4;
+  string genre = 5;
+  bool enabled = 6;
+  int32 priority = 7;
+  int32 padding_start = 8;
+  int32 padding_stop = 9;
+  DuplicateDetection duplicate_detection = 10;
+  string dvr_config_id = 11;
+}
+
+// ListAutoRecRulesRequest lists autorec rules
+message ListAutoRecRulesRequest {
+  bool enabled_only = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+// ListAutoRecRulesResponse returns autorec rules
+message ListAutoRecRulesResponse {
+  repeated AutoRecRule rules = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+// DeleteAutoRecRuleRequest deletes an autorec rule
+message DeleteAutoRecRuleRequest {
+  string id = 1;
+}
+
+// WatchRecordingsRequest subscribes to recording events
+message WatchRecordingsRequest {
+  repeated RecordingStatus status_filter = 1;
+}
+
+// RecordingEvent represents a recording state change
+message RecordingEvent {
+  enum EventType {
+    EVENT_TYPE_UNSPECIFIED = 0;
+    EVENT_TYPE_CREATED = 1;
+    EVENT_TYPE_UPDATED = 2;
+    EVENT_TYPE_DELETED = 3;
+  }
+
+  EventType type = 1;
+  Recording recording = 2;
+  google.protobuf.Timestamp timestamp = 3;
+}
