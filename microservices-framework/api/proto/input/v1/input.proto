@@ -1,0 +1,597 @@
+syntax = "proto3";
+
+package tvheadend.input.v1;
+
+option go_package = "github.com/tvheadend/api/input/v1;inputv1";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+// Input service for managing TV input sources
+service InputService {
+  // List all adapters
+  rpc ListAdapters(ListAdaptersRequest) returns (ListAdaptersResponse);
+
+  // Get a specific adapter
+  rpc GetAdapter(GetAdapterRequest) returns (Adapter);
+
+  // Create a new input source
+  rpc CreateInput(CreateInputRequest) returns (Input);
+
+  // List inputs
+  rpc ListInputs(ListInputsRequest) returns (ListInputsResponse);
+
+  // Get a specific input
+  rpc GetInput(GetInputRequest) returns (Input);
+
+  // Update an input
+  rpc UpdateInput(UpdateInputRequest) returns (Input);
+
+  // Delete an input
+  rpc DeleteInput(DeleteInputRequest) returns (google.protobuf.Empty);
+
+  // Enable/disable an input
+  rpc SetInputEnabled(SetInputEnabledRequest) returns (Input);
+
+  // Scan for services on an input
+  rpc ScanInput(ScanInputRequest) returns (stream ScanProgress);
+
+  // List discovered services
+  rpc ListServices(ListServicesRequest) returns (ListServicesResponse);
+
+  // Get a specific service
+  rpc GetService(GetServiceRequest) returns (Service);
+
+  // List muxes (multiplexes)
+  rpc ListMuxes(ListMuxesRequest) returns (ListMuxesResponse);
+
+  // Get a specific mux
+  rpc GetMux(GetMuxRequest) returns (Mux);
+
+  // Stream input events
+  rpc WatchInputs(WatchInputsRequest) returns (stream InputEvent);
+
+  // Get signal quality metrics
+  rpc GetSignalQuality(GetSignalQualityRequest) returns (SignalQuality);
+}
+
+// InputType represents the type of input source
+enum InputType {
+  INPUT_TYPE_UNSPECIFIED = 0;
+  INPUT_TYPE_DVB_S = 1;   // DVB-S (Satellite)
+  INPUT_TYPE_DVB_S2 = 2;  // DVB-S2 (Satellite)
+  INPUT_TYPE_DVB_T = 3;   // DVB-T (Terrestrial)
+  INPUT_TYPE_DVB_T2 = 4;  // DVB-T2 (Terrestrial)
+  INPUT_TYPE_DVB_C = 5;   // DVB-C (Cable)
+  INPUT_TYPE_ATSC = 6;    // ATSC (North American)
+  INPUT_TYPE_IPTV = 7;    // IPTV (HTTP/UDP)
+  INPUT_TYPE_SATIP = 8;   // SAT>IP
+  INPUT_TYPE_FILE = 9;    // File input
+}
+
+// InputStatus represents the operational status
+enum InputStatus {
+  INPUT_STATUS_UNSPECIFIED = 0;
+  INPUT_STATUS_IDLE = 1;
+  INPUT_STATUS_TUNING = 2;
+  INPUT_STATUS_LOCKED = 3;
+  INPUT_STATUS_ERROR = 4;
+  INPUT_STATUS_DISABLED = 5;
+}
+
+// Adapter represents a hardware or virtual input adapter
+message Adapter {
+  // Adapter ID
+  string id = 1;
+
+  // Adapter name
+  string name = 2;
+
+  // Adapter type
+  InputType type = 3;
+
+  // Device path (for hardware adapters)
+  string device_path = 4;
+
+  // Capabilities
+  AdapterCapabilities capabilities = 5;
+
+  // Current status
+  InputStatus status = 6;
+
+  // Number of inputs using this adapter
+  int32 active_inputs = 7;
+
+  // Hardware information
+  HardwareInfo hardware_info = 8;
+
+  // Created/Updated timestamps
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+}
+
+// AdapterCapabilities describes what the adapter can do
+message AdapterCapabilities {
+  // Supported delivery systems
+  repeated InputType delivery_systems = 1;
+
+  // Maximum bandwidth (Hz)
+  int64 max_bandwidth = 2;
+
+  // Supports DVB-S2 multistream
+  bool multistream = 3;
+
+  // Number of tuners
+  int32 tuner_count = 4;
+
+  // Supports hardware transcoding
+  bool hardware_transcode = 5;
+
+  // Supports CA (Conditional Access)
+  bool conditional_access = 6;
+}
+
+// HardwareInfo contains hardware-specific details
+message HardwareInfo {
+  string vendor = 1;
+  string model = 2;
+  string firmware_version = 3;
+  string driver_version = 4;
+  map<string, string> properties = 5;
+}
+
+// Input represents a configured input source
+message Input {
+  // Input ID
+  string id = 1;
+
+  // Input name
+  string name = 2;
+
+  // Input type
+  InputType type = 3;
+
+  // Adapter ID (for hardware inputs)
+  string adapter_id = 4;
+
+  // Enabled
+  bool enabled = 5;
+
+  // Priority (higher = more important)
+  int32 priority = 6;
+
+  // Current status
+  InputStatus status = 7;
+
+  // Type-specific configuration
+  oneof config {
+    DVBConfig dvb_config = 10;
+    IPTVConfig iptv_config = 11;
+    SATIPConfig satip_config = 12;
+    FileConfig file_config = 13;
+  }
+
+  // Statistics
+  InputStatistics statistics = 20;
+
+  // Error message (if status is ERROR)
+  string error = 21;
+
+  // Created/Updated timestamps
+  google.protobuf.Timestamp created_at = 22;
+  google.protobuf.Timestamp updated_at = 23;
+}
+
+// DVBConfig for DVB inputs
+message DVBConfig {
+  // Frequency (Hz)
+  int64 frequency = 1;
+
+  // Polarization (for satellite: H, V, L, R)
+  string polarization = 2;
+
+  // Symbol rate (symbols/sec)
+  int32 symbol_rate = 3;
+
+  // FEC (Forward Error Correction)
+  string fec = 4;
+
+  // Modulation
+  string modulation = 5;
+
+  // LNB configuration (for satellite)
+  LNBConfig lnb_config = 6;
+
+  // DiSEqC settings
+  DiseqcConfig diseqc_config = 7;
+
+  // Stream ID (for multistream)
+  int32 stream_id = 8;
+
+  // PLS code (for multistream)
+  int32 pls_code = 9;
+
+  // PLS mode
+  string pls_mode = 10;
+}
+
+// LNBConfig for satellite LNB settings
+message LNBConfig {
+  string type = 1;  // Universal, Standard, etc.
+  int64 lo_frequency = 2;  // Local oscillator frequency (Hz)
+  int64 hi_frequency = 3;  // High band frequency (Hz)
+  int64 switch_frequency = 4;  // Switch frequency (Hz)
+}
+
+// DiseqcConfig for DiSEqC switching
+message DiseqcConfig {
+  string version = 1;  // 1.0, 1.1, 1.2, etc.
+  int32 position = 2;  // Switch position
+  int32 committed = 3;  // Committed switch
+  int32 uncommitted = 4;  // Uncommitted switch
+  bool enable_22khz = 5;
+  bool enable_tone_burst = 6;
+}
+
+// IPTVConfig for IPTV inputs
+message IPTVConfig {
+  // URL (http://, udp://, rtp://)
+  string url = 1;
+
+  // Network interface (optional)
+  string interface = 2;
+
+  // Buffer size (bytes)
+  int32 buffer_size = 3;
+
+  // Timeout (seconds)
+  int32 timeout = 4;
+
+  // User agent
+  string user_agent = 5;
+
+  // HTTP headers
+  map<string, string> headers = 6;
+
+  // Authentication
+  string username = 7;
+  string password = 8;
+}
+
+// SATIPConfig for SAT>IP inputs
+message SATIPConfig {
+  // Server URL
+  string server_url = 1;
+
+  // Source number
+  int32 source = 2;
+
+  // Frontend number
+  int32 frontend = 3;
+
+  // RTSP settings
+  RTSPConfig rtsp_config = 4;
+}
+
+// RTSPConfig for RTSP protocol settings
+message RTSPConfig {
+  int32 timeout = 1;
+  bool tcp_transport = 2;
+  int32 buffer_size = 3;
+}
+
+// FileConfig for file inputs
+message FileConfig {
+  // File path
+  string path = 1;
+
+  // Loop playback
+  bool loop = 2;
+
+  // Playback speed multiplier
+  double speed = 3;
+}
+
+// InputStatistics tracks input metrics
+message InputStatistics {
+  // Total bytes received
+  int64 bytes_received = 1;
+
+  // Packets received
+  int64 packets_received = 2;
+
+  // Packet errors
+  int64 packet_errors = 3;
+
+  // Continuity errors
+  int64 continuity_errors = 4;
+
+  // Transport errors
+  int64 transport_errors = 5;
+
+  // Bitrate (bits/sec)
+  int64 bitrate = 6;
+
+  // Uptime (seconds)
+  int64 uptime = 7;
+
+  // Last updated
+  google.protobuf.Timestamp last_updated = 8;
+}
+
+// Mux represents a transport stream multiplex
+message Mux {
+  // Mux ID
+  string id = 1;
+
+  // Input ID
+  string input_id = 2;
+
+  // Frequency (Hz)
+  int64 frequency = 3;
+
+  // Network ID
+  int32 network_id = 4;
+
+  // Transport stream ID
+  int32 transport_stream_id = 5;
+
+  // Original network ID
+  int32 original_network_id = 6;
+
+  // Mux name
+  string name = 7;
+
+  // Enabled
+  bool enabled = 8;
+
+  // Scan status
+  ScanStatus scan_status = 9;
+
+  // Services on this mux
+  int32 service_count = 10;
+
+  // Created/Updated timestamps
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp updated_at = 12;
+}
+
+// ScanStatus for mux scanning state
+enum ScanStatus {
+  SCAN_STATUS_UNSPECIFIED = 0;
+  SCAN_STATUS_PENDING = 1;
+  SCAN_STATUS_SCANNING = 2;
+  SCAN_STATUS_COMPLETED = 3;
+  SCAN_STATUS_FAILED = 4;
+}
+
+// Service represents a discovered service/program
+message Service {
+  // Service ID
+  string id = 1;
+
+  // Mux ID
+  string mux_id = 2;
+
+  // Service ID (from MPEG-TS)
+  int32 service_id = 3;
+
+  // Service name
+  string name = 4;
+
+  // Provider name
+  string provider = 5;
+
+  // Service type
+  ServiceType type = 6;
+
+  // Enabled
+  bool enabled = 7;
+
+  // PIDs
+  ServicePIDs pids = 8;
+
+  // Encryption status
+  bool encrypted = 9;
+
+  // CA systems
+  repeated int32 ca_systems = 10;
+
+  // Created/Updated timestamps
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp updated_at = 12;
+}
+
+// ServiceType indicates the type of service
+enum ServiceType {
+  SERVICE_TYPE_UNSPECIFIED = 0;
+  SERVICE_TYPE_TV = 1;
+  SERVICE_TYPE_RADIO = 2;
+  SERVICE_TYPE_SDTV = 3;
+  SERVICE_TYPE_HDTV = 4;
+  SERVICE_TYPE_UHDTV = 5;
+  SERVICE_TYPE_DATA = 6;
+}
+
+// ServicePIDs contains service PID information
+message ServicePIDs {
+  int32 pcr_pid = 1;
+  int32 pmt_pid = 2;
+  repeated int32 video_pids = 3;
+  repeated int32 audio_pids = 4;
+  repeated int32 subtitle_pids = 5;
+  repeated int32 teletext_pids = 6;
+}
+
+// SignalQuality represents signal quality metrics
+message SignalQuality {
+  string input_id = 1;
+
+  // Signal strength (0-100%)
+  int32 signal_strength = 2;
+
+  // Signal-to-noise ratio (dB * 10)
+  int32 snr = 3;
+
+  // Bit error rate
+  int64 ber = 4;
+
+  // Uncorrected blocks
+  int64 unc = 5;
+
+  // Lock status
+  bool locked = 6;
+
+  // Timestamp
+  google.protobuf.Timestamp timestamp = 7;
+}
+
+// Request/Response messages
+
+message ListAdaptersRequest {
+  InputType type_filter = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListAdaptersResponse {
+  repeated Adapter adapters = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+message GetAdapterRequest {
+  string id = 1;
+}
+
+message CreateInputRequest {
+  string name = 1;
+  InputType type = 2;
+  string adapter_id = 3;
+  bool enabled = 4;
+  int32 priority = 5;
+
+  oneof config {
+    DVBConfig dvb_config = 10;
+    IPTVConfig iptv_config = 11;
+    SATIPConfig satip_config = 12;
+    FileConfig file_config = 13;
+  }
+}
+
+message ListInputsRequest {
+  InputType type_filter = 1;
+  InputStatus status_filter = 2;
+  bool enabled_only = 3;
+  int32 page_size = 4;
+  string page_token = 5;
+  string order_by = 6;
+}
+
+message ListInputsResponse {
+  repeated Input inputs = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+message GetInputRequest {
+  string id = 1;
+}
+
+message UpdateInputRequest {
+  string id = 1;
+  optional string name = 2;
+  optional bool enabled = 3;
+  optional int32 priority = 4;
+
+  oneof config {
+    DVBConfig dvb_config = 10;
+    IPTVConfig iptv_config = 11;
+    SATIPConfig satip_config = 12;
+    FileConfig file_config = 13;
+  }
+}
+
+message DeleteInputRequest {
+  string id = 1;
+}
+
+message SetInputEnabledRequest {
+  string id = 1;
+  bool enabled = 2;
+}
+
+message ScanInputRequest {
+  string input_id = 1;
+  bool full_scan = 2;  // Full scan vs. quick scan
+}
+
+message ScanProgress {
+  string input_id = 1;
+  ScanStatus status = 2;
+  int32 progress_percent = 3;
+  int32 muxes_scanned = 4;
+  int32 services_found = 5;
+  string message = 6;
+}
+
+message ListServicesRequest {
+  string input_id = 1;
+  string mux_id = 2;
+  ServiceType type_filter = 3;
+  bool enabled_only = 4;
+  bool exclude_encrypted = 5;
+  int32 page_size = 6;
+  string page_token = 7;
+}
+
+message ListServicesResponse {
+  repeated Service services = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+message GetServiceRequest {
+  string id = 1;
+}
+
+message ListMuxesRequest {
+  string input_id = 1;
+  bool enabled_only = 2;
+  int32 page_size = 3;
+  string page_token = 4;
+}
+
+message ListMuxesResponse {
+  repeated Mux muxes = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+message GetMuxRequest {
+  string id = 1;
+}
+
+message WatchInputsRequest {
+  repeated string input_ids = 1;
+}
+
+message InputEvent {
+  enum EventType {
+    EVENT_TYPE_UNSPECIFIED = 0;
+    EVENT_TYPE_CREATED = 1;
+    EVENT_TYPE_UPDATED = 2;
+    EVENT_TYPE_DELETED = 3;
+    EVENT_TYPE_STATUS_CHANGED = 4;
+    EVENT_TYPE_SIGNAL_CHANGED = 5;
+  }
+
+  EventType type = 1;
+  Input input = 2;
+  SignalQuality signal_quality = 3;
+  google.protobuf.Timestamp timestamp = 4;
+}
+
+message GetSignalQualityRequest {
+  string input_id = 1;
+}

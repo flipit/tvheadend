@@ -169,6 +169,36 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  input-service:
+    build:
+      context: ..
+      dockerfile: deployments/docker/Dockerfile.input-service
+    ports:
+      - "8083:8080"
+      - "9096:9090"
+      - "9097:9091"
+    environment:
+      DATABASE_URL: "postgresql://tvheadend:password@postgres:5432/tvheadend?sslmode=disable"
+      NATS_URL: "nats://nats:4222"
+      REDIS_URL: "redis://redis:6379"
+      JAEGER_ENDPOINT: "http://jaeger:14268/api/traces"
+      GRPC_PORT: "8080"
+      HTTP_PORT: "9090"
+      METRICS_PORT: "9091"
+      LOG_LEVEL: "info"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # Uncomment for DVB hardware access
+    # devices:
+    #   - "/dev/dvb:/dev/dvb"
+    # privileged: true
+    restart: unless-stopped
+
   # API Gateway (Envoy or custom)
   api-gateway:
     image: envoyproxy/envoy:v1.28-latest
@@ -182,6 +212,7 @@ services:
       - dvr-service
       - epg-service
       - channel-service
+      - input-service
 
 volumes:
   postgres-data:

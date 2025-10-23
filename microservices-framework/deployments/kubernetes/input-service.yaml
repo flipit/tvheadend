@@ -1,0 +1,232 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: input-service-config
+  namespace: tvheadend
+data:
+  LOG_LEVEL: "info"
+  GRPC_PORT: "8080"
+  HTTP_PORT: "9090"
+  METRICS_PORT: "9091"
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: input-service-secret
+  namespace: tvheadend
+type: Opaque
+stringData:
+  DATABASE_URL: "postgresql://tvheadend:password@postgres:5432/input?sslmode=disable"
+  NATS_URL: "nats://nats:4222"
+  JAEGER_ENDPOINT: "http://jaeger:14268/api/traces"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: input-service
+  namespace: tvheadend
+  labels:
+    app: input-service
+    version: v2.0.0
+spec:
+  replicas: 1  # Usually 1 for input service (hardware access)
+  selector:
+    matchLabels:
+      app: input-service
+  template:
+    metadata:
+      labels:
+        app: input-service
+        version: v2.0.0
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: input-service
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      # For DVB hardware access
+      hostNetwork: false  # Set to true if DVB hardware access needed
+      containers:
+      - name: input-service
+        image: tvheadend/input-service:2.0.0
+        imagePullPolicy: Always
+        ports:
+        - name: grpc
+          containerPort: 8080
+          protocol: TCP
+        - name: http
+          containerPort: 9090
+          protocol: TCP
+        - name: metrics
+          containerPort: 9091
+          protocol: TCP
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: input-service-secret
+              key: DATABASE_URL
+        - name: NATS_URL
+          valueFrom:
+            secretKeyRef:
+              name: input-service-secret
+              key: NATS_URL
+        - name: JAEGER_ENDPOINT
+          valueFrom:
+            secretKeyRef:
+              name: input-service-secret
+              key: JAEGER_ENDPOINT
+        envFrom:
+        - configMapRef:
+            name: input-service-config
+        # Uncomment for DVB hardware access
+        # volumeMounts:
+        # - name: dvb-devices
+        #   mountPath: /dev/dvb
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "1000m"
+        livenessProbe:
+          grpc:
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          grpc:
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      # Uncomment for DVB hardware access
+      # volumes:
+      # - name: dvb-devices
+      #   hostPath:
+      #     path: /dev/dvb
+      #     type: Directory
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: input-service
+  namespace: tvheadend
+  labels:
+    app: input-service
+spec:
+  type: ClusterIP
+  ports:
+  - name: grpc
+    port: 8080
+    targetPort: grpc
+    protocol: TCP
+  - name: http
+    port: 9090
+    targetPort: http
+    protocol: TCP
+  selector:
+    app: input-service
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: input-service
+  namespace: tvheadend
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: input-service
+  namespace: tvheadend
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: input-service
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: input-service
+  namespace: tvheadend
+spec:
+  podSelector:
+    matchLabels:
+      app: input-service
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: api-gateway
+    - podSelector:
+        matchLabels:
+          app: stream-service
+    ports:
+    - protocol: TCP
+      port: 8080
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 9091
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app: postgres
+    ports:
+    - protocol: TCP
+      port: 5432
+  - to:
+    - podSelector:
+        matchLabels:
+          app: nats
+    ports:
+    - protocol: TCP
+      port: 4222
+  - to:
+    - podSelector:
+        matchLabels:
+          app: jaeger
+    ports:
+    - protocol: TCP
+      port: 14268
+  # Allow outbound for IPTV and SAT>IP
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 80
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 554  # RTSP
+    - protocol: UDP
+      port: 1234  # RTP (example)
