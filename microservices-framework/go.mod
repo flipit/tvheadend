@@ -3,14 +3,17 @@ module github.com/tvheadend
 go 1.21
 
 require (
+	github.com/aler9/gortsplib/v2 v2.3.0
 	github.com/golang-jwt/jwt/v5 v5.1.0
 	github.com/google/uuid v1.4.0
 	github.com/gorilla/websocket v1.5.1
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.18.1
 	github.com/nats-io/nats.go v1.31.0
+	github.com/pion/rtp v1.8.3
 	github.com/prometheus/client_golang v1.17.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/stretchr/testify v1.8.4
+	github.com/ziutek/dvb v0.0.0-20220620141956-9c81c1e60481
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.46.0
 	go.opentelemetry.io/otel v1.21.0
 	go.opentelemetry.io/otel/exporters/jaeger v1.17.0
